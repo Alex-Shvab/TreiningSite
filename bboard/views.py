@@ -1,39 +1,50 @@
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
 from .models import Bb, Rubric
-from django.views.generic import FormView, TemplateView, DetailView, ListView, UpdateView, DeleteView
+from django.views.generic.detail import SingleObjectMixin
+from django.views.generic import RedirectView, FormView, ArchiveIndexView, DateDetailView, ListView, UpdateView, DeleteView
 from .forms import BbForm
 from django.urls import reverse
 
 
-class BbIndexView(TemplateView):
+class BbIndexView(ArchiveIndexView):
     template_name = 'bboard/index.html'
-
-    def get_context_data(self, *args, **kwargs):
-        context = super().get_context_data(*args, **kwargs)
-        context['bbs'] = Bb.objects.all()
-        context['rubrics'] = Rubric.objects.all()
-        return context
-
-class BbDetailView(DetailView):
     model = Bb
+    date_field = 'published'
+    context_object_name = 'bbs'
+    allow_empty = True
 
     def get_context_data(self, *args, **kwargs):
         context = super().get_context_data(*args, **kwargs)
         context['rubrics'] = Rubric.objects.all()
         return context
 
-class BbByRubricView(ListView):
+class BbDetailView(DateDetailView):
+    model = Bb
+    date_field = 'published'
+    month_format = '%m'
+
+    def get_context_data(self, *args, **kwargs):
+        context = super().get_context_data(*args, **kwargs)
+        context['rubrics'] = Rubric.objects.all()
+        return context
+
+class BbByRubricView(SingleObjectMixin, ListView):
     template_name = 'bboard/by_rubric.html'
-    context_object_name = 'bbs'
+    pk_url_kwarg = 'rubric_id'
+
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object(queryset=Rubric.objects.all())
+        return super().get(request, *args, **kwargs)
 
     def get_queryset(self):
-        return Bb.objects.filter(rubric=self.kwargs['rubric_id'])
+        return self.object.bb_set.all()
 
     def get_context_data(self, *args, **kwargs):
         context = super().get_context_data(*args, **kwargs)
         context['rubrics'] = Rubric.objects.all()
         context['current_rubric'] = Rubric.objects.get(pk=self.kwargs['rubric_id'])
+        context['bbs'] = context['object_list']
         return context
 
 class BbAddView(FormView):
@@ -78,3 +89,6 @@ class BbDeleteView(DeleteView):
         context = super().get_context_data(*args, **kwargs)
         context['rubrics'] = Rubric.objects.all()
         return context
+
+class BbRedirectView(RedirectView):
+    url = '/detail/%(pk)d/'
